@@ -2,6 +2,32 @@
 #include "RTLPowerWrapper.h"
 #include <map>
 
+struct Settings
+{
+	int samp_rate;
+	float min_freq;
+	float max_freq;
+	// 0 = Hz
+	// 1 = kHz
+	// 2 = MHz
+	// 3 = GHz
+	int min_freq_units;
+	float gain;
+	int max_freq_units;
+	int nbins;
+	int percent;
+	bool use_nsamples;
+	int nsamples;
+	double samplet;
+};
+
+struct Scan
+{
+	std::vector<Readout> reads;
+	bool is_first_of_scan;
+	bool is_last_of_scan;
+};
+
 // Runs in a thread to build the raw plots for ImGui
 // with no blocking
 // and uses the RTLPowerWrapper to get its data
@@ -19,11 +45,15 @@ private:
 
 	int64_t get_freq(float val, int units);
 	std::mutex mtx;
-	std::vector<Readout> reads_buffer;
-	// To allow overwriting
-	std::vector<int> end_of_sweeps;
+	std::vector<Scan> reads_buffer;
+	std::atomic<bool> next_is_first;
 
-
+	double bandwidths[4] =
+			{
+			100e3,
+			1e6,
+			2e6
+			};
 
 public:
 
@@ -33,20 +63,8 @@ public:
 	void update();
 	std::atomic<bool> launch_queued = false;
 
-	float min_freq;
-	float max_freq;
-	// 0 = Hz
-	// 1 = kHz
-	// 2 = MHz
-	// 3 = GHz
-	int min_freq_units;
-	int gain;
-	int max_freq_units;
-	int nbins;
-	int percent;
-	bool use_nsamples;
-	int nsamples;
-	double samplet;
+	Settings exposed;
+	Settings commited;
 
 	void commit_settings();
 
@@ -61,6 +79,10 @@ public:
 	int get_num_points();
 
 	double get_low_freq();
+	double get_high_freq();
+	double get_freq_range() { return get_high_freq() - get_low_freq(); }
+	size_t get_number_of_scans();
+	double get_hertz_per_bin();
 	double get_bin_scale();
 
 	// Returns min and length to plot given low and high frequencies

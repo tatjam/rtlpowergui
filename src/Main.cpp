@@ -12,10 +12,13 @@ int main(void)
 
 	bool show_menu = true;
 	bool first_run = true;
-	auto gui_function = [&show_menu, &pb, &first_run]()
+	bool update_view = true;
+	auto gui_function = [
+			&show_menu, &pb, &first_run, &update_view]()
 	{
 		pb.update();
 		const char* units[] = {"Hz", "kHz", "MHz", "GHz"};
+		bool update_view_now = false;
 		//pb.update(ImGui::GetIO().DeltaTime);
 		if(show_menu)
 		{
@@ -38,31 +41,51 @@ int main(void)
 				ImGui::Text("Min");
 				ImGui::SameLine();
 				ImGui::PushItemWidth(120.0f);
-				ImGui::InputFloat("##minfreq", &pb.min_freq);
+				ImGui::InputFloat("##minfreq", &pb.exposed.min_freq);
 				ImGui::PopItemWidth();
 				ImGui::SameLine();
 				ImGui::PushItemWidth(70.0f);
-				ImGui::Combo("##minfrequnits", &pb.min_freq_units, units, IM_ARRAYSIZE(units));
+				ImGui::Combo("##minfrequnits", &pb.exposed.min_freq_units, units, IM_ARRAYSIZE(units));
 				ImGui::PopItemWidth();
 				ImGui::Text("Max");
 				ImGui::SameLine();
 				ImGui::PushItemWidth(120.0f);
-				ImGui::InputFloat("##maxfreq", &pb.max_freq);
+				ImGui::InputFloat("##maxfreq", &pb.exposed.max_freq);
 				ImGui::PopItemWidth();
 				ImGui::SameLine();
 				ImGui::PushItemWidth(70.0f);
-				ImGui::Combo("##maxfrequnits", &pb.max_freq_units, units, IM_ARRAYSIZE(units));
+				ImGui::Combo("##maxfrequnits", &pb.exposed.max_freq_units, units, IM_ARRAYSIZE(units));
 				ImGui::PopItemWidth();
+				ImGui::Text("Gain");
+				ImGui::SameLine();
+				ImGui::SliderFloat("##gain", &pb.exposed.gain, 0.0f, 50.0f);
+				ImGui::Text("Bins");
+				ImGui::SameLine();
+				ImGui::InputInt("##bins", &pb.exposed.nbins);
+				ImGui::Text("Samp");
+				ImGui::SameLine();
+				ImGui::InputInt("##samp", &pb.exposed.nsamples);
+				ImGui::Text("Overlap");
+				ImGui::SameLine();
+				ImGui::InputInt("##overlap", &pb.exposed.percent);
 
 				if (ImGui::Button("Commit settings"))
 				{
 					pb.commit_settings();
+					if(update_view)
+						update_view_now = true;
 				}
+				ImGui::SameLine();
+				ImGui::Checkbox("Update view", &update_view);
 				if(disabled)
 					ImGui::EndDisabled();
 			}
 			if(ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen))
 			{
+				if(ImGui::Button("Recenter view"))
+				{
+					update_view_now = true;
+				}
 
 			}
 			if (ImGui::CollapsingHeader("Measure", ImGuiTreeNodeFlags_DefaultOpen))
@@ -82,7 +105,13 @@ int main(void)
 		}
 		float x[3] = {1.0, 2.0, 3.0};
 		float y[3] = {0.0, 4.0, -3.0};
-		ImPlot::BeginPlot("Test");
+		ImPlot::BeginPlot("Test", ImVec2(-1, -1));
+		if(update_view && update_view_now)
+		{
+			ImPlot::SetupAxesLimits(pb.get_low_freq(), pb.get_high_freq(),
+									-80.0, 0.0, ImPlotCond_Always);
+			update_view_now = false;
+		}
 		auto limits = ImPlot::GetPlotLimits();
 		auto extents = pb.get_plot_ranges(limits.X.Min, limits.X.Max);
 		ImPlot::PlotLine("Spectrum", pb.current_measurement.data() + extents.first, extents.second,

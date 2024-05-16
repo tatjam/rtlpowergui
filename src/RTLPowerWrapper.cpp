@@ -13,6 +13,7 @@ void RTLPowerWrapper::launch()
 {
 	if(thread.joinable())
 	{
+		thread_run = false;
 		thread.join();
 	}
 
@@ -33,14 +34,17 @@ void RTLPowerWrapper::launch()
 
 	// [0] = read, [1] = write
 	int pipefd[2];
-	pipe(pipefd);
+	if(pipe(pipefd) == -1)
+	{
+		std::cerr << "Unable to create pipe" << std::endl;
+	}
 	cur_pid = fork();
 	if(cur_pid == 0)
 	{
 		// Child process
 		close(pipefd[0]);
 		dup2(pipefd[1], 1); // redirect stdout (fd 1) to pipe, this replaces the fd
-		//close(2); // close stderr
+		close(2); // close stderr
 		close(pipefd[1]); 	// so we dont need the pipe itself, as it's stdout itself now
 		// Launch the process replacing ourselves
 		execl("/bin/sh", "sh", "-c", cmdbuild.str().c_str(), nullptr);
@@ -53,7 +57,7 @@ void RTLPowerWrapper::launch()
 	thread_run = true;
 
 	// Launch worker thread
-	thread = std::thread([&cmdbuild, pipefd, this]()
+	thread = std::thread([this](int readfd)
 	{
 		std::string readbuffer;
 		char inbuffer[128];
@@ -61,7 +65,7 @@ void RTLPowerWrapper::launch()
 		// Setup poll
 		struct pollfd pfd =
 		{
-				pipefd[0], POLLIN, 0
+				readfd, POLLIN
 		};
 
 		while(thread_run)
@@ -83,8 +87,10 @@ void RTLPowerWrapper::launch()
 			}
 		}
 
-		close(pipefd[0]);
-	});
+		std::cout << "THREAD EXIT!" << std::endl;
+
+		close(readfd);
+	}, pipefd[0]);
 
 
 }
@@ -124,12 +130,14 @@ void RTLPowerWrapper::set_num_samples(int nsamples)
 {
 	assert(!thread_run);
 	snum = nsamples;
+	use_stime = false;
 }
 
 double RTLPowerWrapper::set_samp_time(double nstime)
 {
 	assert(!thread_run);
 	stime = nstime;
+	use_stime = true;
 }
 
 void RTLPowerWrapper::set_gain(int ngain)
@@ -151,7 +159,6 @@ void RTLPowerWrapper::process_line(const std::string &line)
 		{
 			// End of sweep, notify with flag, and do nothing else
 			back_buffer.is_end_of_sweep = true;
-			std::cout << "EOS" << std::endl;
 		}
 		skipped_prev = true;
 	}
@@ -169,6 +176,7 @@ void RTLPowerWrapper::process_line(const std::string &line)
 
 			// Clear back buffer
 			back_buffer = RTLPowerData();
+			back_buffer.is_end_of_sweep = false;
 			skipped_prev = false;
 		}
 
@@ -179,9 +187,6 @@ void RTLPowerWrapper::process_line(const std::string &line)
 		s >> read.freq >> read.power;
 		back_buffer.reads.push_back(read);
 	}
-
-
-
 }
 
 bool RTLPowerWrapper::is_stopped()
@@ -193,6 +198,8 @@ RTLPowerWrapper::RTLPowerWrapper()
 {
 	thread_run = false;
 	cur_pid = 0;
+	skipped_prev = false;
+	data = nullptr;
 }
 
 RTLPowerWrapper::~RTLPowerWrapper()
