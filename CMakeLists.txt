@@ -8,5 +8,5 @@ add_subdirectory(hello_imgui)
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
-hello_imgui_add_app(rtlpowergui ${SOURCES})
+hello_imgui_add_app(rtlpowergui ${SOURCES} implot/implot.cpp implot/implot_items.cpp)
 
