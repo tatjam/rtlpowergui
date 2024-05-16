@@ -36,7 +36,7 @@ private:
 	std::thread thread;
 
 	std::atomic<bool> thread_run;
-	std::atomic<bool> closing;
+	std::atomic<int> cur_pid;
 
 	bool skipped_prev;
 	void process_line(const std::string& line);
@@ -53,8 +53,12 @@ public:
 	void set_overlap(int percent);
 	void set_num_samples(int nsamples);
 	double set_samp_time(double stime);
+	void set_gain(int ngain);
 
 	void launch();
+	bool is_stopped();
+
+	bool get_exec_status();
 
 	// This cvar will be notified once data is available, use
 	// the data_mtx to lock it
@@ -67,4 +71,7 @@ public:
 	// Sample data is written here, copy it and continue operation on data available
 	RTLPowerData front_buffer;
 	RTLPowerData back_buffer;
+
+	RTLPowerWrapper();
+	~RTLPowerWrapper();
 };

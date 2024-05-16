@@ -6,16 +6,24 @@
 #include <signal.h>
 #include <poll.h>
 #include <cassert>
+#include <iostream>
+#include <sys/wait.h>
 
 void RTLPowerWrapper::launch()
 {
+	if(thread.joinable())
+	{
+		thread.join();
+	}
+
 	std::stringstream cmdbuild;
 	cmdbuild << "rtl_power_fftw";
 	cmdbuild <<
-	"-b " << nbins <<
+	" -b " << nbins <<
 	" -f " << min_f << ":" << max_f <<
 	" -g " << gain <<
-	" -o " << overlap_percent;
+	" -o " << overlap_percent <<
+	" -c";
 	if(use_stime)
 		cmdbuild << " -t " << stime;
 	else
@@ -26,14 +34,16 @@ void RTLPowerWrapper::launch()
 	// [0] = read, [1] = write
 	int pipefd[2];
 	pipe(pipefd);
-	int pid = fork();
-	if(pid == 0)
+	cur_pid = fork();
+	if(cur_pid == 0)
 	{
 		// Child process
 		close(pipefd[0]);
 		dup2(pipefd[1], 1); // redirect stdout (fd 1) to pipe, this replaces the fd
+		//close(2); // close stderr
 		close(pipefd[1]); 	// so we dont need the pipe itself, as it's stdout itself now
 		// Launch the process replacing ourselves
+		execl("/bin/sh", "sh", "-c", cmdbuild.str().c_str(), nullptr);
 	}
 	else
 	{
@@ -41,10 +51,9 @@ void RTLPowerWrapper::launch()
 	}
 
 	thread_run = true;
-	closing = false;
 
 	// Launch worker thread
-	thread = std::thread([&cmdbuild, pid, pipefd, this]()
+	thread = std::thread([&cmdbuild, pipefd, this]()
 	{
 		std::string readbuffer;
 		char inbuffer[128];
@@ -55,7 +64,7 @@ void RTLPowerWrapper::launch()
 				pipefd[0], POLLIN, 0
 		};
 
-		while(true)
+		while(thread_run)
 		{
 			poll(&pfd, 1, 100);
 			if(pfd.revents & POLLIN)
@@ -72,21 +81,6 @@ void RTLPowerWrapper::launch()
 					}
 				}
 			}
-
-			if(!thread_run && !closing)
-			{
-				// This won't close immediately, it will finish the sweep
-				// and neatly stop RTL-SDR
-				kill(pid, SIGINT);
-				closing = true;
-			}
-			if(closing)
-			{
-				// Check if the process has finally died, to exit the loop
-				// as no more data can be gotten
-				if(kill(pid, 0) == -1)
-					break;
-			}
 		}
 
 		close(pipefd[0]);
@@ -97,6 +91,13 @@ void RTLPowerWrapper::launch()
 
 void RTLPowerWrapper::stop()
 {
+	if(cur_pid != 0)
+	{
+		// TODO: Use SIGINT to smoothly shut off!
+		std::cout << kill(cur_pid, SIGTERM) << std::endl;
+		std::cout << kill(cur_pid, SIGTERM) << std::endl;
+		wait(nullptr);
+	}
 	thread_run = false;
 }
 
@@ -131,6 +132,12 @@ double RTLPowerWrapper::set_samp_time(double nstime)
 	stime = nstime;
 }
 
+void RTLPowerWrapper::set_gain(int ngain)
+{
+	assert(!thread_run);
+	gain = ngain;
+}
+
 void RTLPowerWrapper::process_line(const std::string &line)
 {
 	if(line[0] == '#')
@@ -138,12 +145,13 @@ void RTLPowerWrapper::process_line(const std::string &line)
 		return;
 	}
 
-	if(line.empty())
+	if(line == "\n")
 	{
 		if(skipped_prev)
 		{
 			// End of sweep, notify with flag, and do nothing else
 			back_buffer.is_end_of_sweep = true;
+			std::cout << "EOS" << std::endl;
 		}
 		skipped_prev = true;
 	}
@@ -175,3 +183,32 @@ void RTLPowerWrapper::process_line(const std::string &line)
 
 
 }
+
+bool RTLPowerWrapper::is_stopped()
+{
+	return !thread_run;
+}
+
+RTLPowerWrapper::RTLPowerWrapper()
+{
+	thread_run = false;
+	cur_pid = 0;
+}
+
+RTLPowerWrapper::~RTLPowerWrapper()
+{
+	stop();
+	if(thread.joinable())
+	{
+		thread_run = false;
+		thread.join();
+	}
+
+}
+
+bool RTLPowerWrapper::get_exec_status()
+{
+	// -1 means it's not running
+	return kill(cur_pid, 0) == -1;
+}
+
