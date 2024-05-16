@@ -81,6 +81,10 @@ PlotBuilder::PlotBuilder()
 	thread_run = false;
 	launch_queued = false;
 
+	num_average_hold = 20;
+	update_averaging();
+
+
 }
 
 	void PlotBuilder::commit_settings()
@@ -114,6 +118,7 @@ PlotBuilder::PlotBuilder()
 		// Clear points
 		current_measurement.clear();
 		current_measurement.resize(std::ceil(get_number_of_scans() * commited.nbins));
+		update_averaging();
 	}
 
 	size_t PlotBuilder::get_number_of_scans()
@@ -170,6 +175,13 @@ PlotBuilder::PlotBuilder()
 		mtx.lock();
 		for(const auto& sc : reads_buffer)
 		{
+			if(sc.is_first_of_scan)
+			{
+				if(measurement_count < num_average_hold)
+				{
+					measurement_count++;
+				}
+			}
 			for (size_t i = 0; i < sc.reads.size(); i++)
 			{
 				size_t bin = get_bin_for_freq(sc.reads[i].freq);
@@ -181,10 +193,35 @@ PlotBuilder::PlotBuilder()
 				{
 					num_skip_below = 0;
 				}
-				if (i >= num_skip_below)
+				if (i >= num_skip_below && bin <= current_measurement.size() - 1)
 				{
-					if (bin <= current_measurement.size() - 1)
-						current_measurement[bin] = sc.reads[i].power;
+					current_measurement[bin] = sc.reads[i].power;
+
+					if(measurement_count > 0)
+					{
+						// Insert current measurement to FIFO
+						prev_measurements[measurement_count - 1][bin] = current_measurement[bin];
+
+						// Move back FIFO for this sample
+						for (int j = 0; j < measurement_count - 1; j++)
+						{
+							prev_measurements[j][bin] = prev_measurements[j + 1][bin];
+						}
+
+						// Current value is average of all in array
+						averaged_measurement[bin] = 0;
+						max_measurement[bin] = -9999;
+						min_measurement[bin] = 9999;
+						for (int j = 0; j < measurement_count; j++)
+						{
+							averaged_measurement[bin] += prev_measurements[j][bin];
+							max_measurement[bin] = std::max(prev_measurements[j][bin], max_measurement[bin]);
+							min_measurement[bin] = std::min(prev_measurements[j][bin], min_measurement[bin]);
+						}
+						averaged_measurement[bin] /= measurement_count;
+
+					}
+
 				}
 			}
 		}
@@ -224,6 +261,22 @@ std::pair<size_t, size_t> PlotBuilder::get_plot_ranges(double lfreq, double hfre
 
 	return std::make_pair(low, high - low);
 
+}
+
+void PlotBuilder::update_averaging()
+{
+	prev_measurements.clear();
+	prev_measurements.resize(num_average_hold);
+	for(size_t i = 0; i < num_average_hold; i++)
+	{
+		prev_measurements[i].resize(current_measurement.size());
+	}
+
+	averaged_measurement.clear();
+	averaged_measurement.resize(current_measurement.size());
+	max_measurement.resize(current_measurement.size());
+	min_measurement.resize(current_measurement.size());
+	measurement_count = 0;
 }
 
 

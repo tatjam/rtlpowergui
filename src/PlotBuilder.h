@@ -41,8 +41,6 @@ private:
 	// We neatly subdivide the freq spectrum, and round samples
 	// (this will nearly never be an issue)
 
-	int num_averages;
-
 	int64_t get_freq(float val, int units);
 	std::mutex mtx;
 	std::vector<Scan> reads_buffer;
@@ -67,6 +65,7 @@ public:
 	Settings commited;
 
 	void commit_settings();
+	void update_averaging();
 
 	bool can_change_settings();
 
@@ -76,6 +75,15 @@ public:
 
 	// Returns Hertz / dB/Hz
 	std::vector<double> current_measurement;
+	int num_average_hold;
+	// Number of measurements since last update_averaging
+	// growing until it's equal to num_average_hold
+	int measurement_count;
+	std::vector<std::vector<double>> prev_measurements;
+	std::vector<double> averaged_measurement;
+	std::vector<double> max_measurement;
+	std::vector<double> min_measurement;
+
 	int get_num_points();
 
 	double get_low_freq();

@@ -13,12 +13,12 @@ int main(void)
 	bool show_menu = true;
 	bool first_run = true;
 	bool update_view = true;
+	bool update_view_now = true;
 	auto gui_function = [
-			&show_menu, &pb, &first_run, &update_view]()
+			&show_menu, &pb, &first_run, &update_view, &update_view_now]()
 	{
 		pb.update();
 		const char* units[] = {"Hz", "kHz", "MHz", "GHz"};
-		bool update_view_now = false;
 		//pb.update(ImGui::GetIO().DeltaTime);
 		if(show_menu)
 		{
@@ -87,6 +87,14 @@ int main(void)
 					update_view_now = true;
 				}
 
+				ImGui::Text("Num history");
+				ImGui::SameLine();
+				if(ImGui::InputInt("##numhistory", &pb.num_average_hold))
+				{
+					pb.update_averaging();
+				}
+				ImGui::Text("Saved: %i", pb.measurement_count);
+
 			}
 			if (ImGui::CollapsingHeader("Measure", ImGuiTreeNodeFlags_DefaultOpen))
 			{
@@ -115,6 +123,15 @@ int main(void)
 		auto limits = ImPlot::GetPlotLimits();
 		auto extents = pb.get_plot_ranges(limits.X.Min, limits.X.Max);
 		ImPlot::PlotLine("Spectrum", pb.current_measurement.data() + extents.first, extents.second,
+						 pb.get_bin_scale(), pb.get_bin_center_freq(extents.first));
+		ImPlot::HideNextItem();
+		ImPlot::PlotLine("Averages", pb.averaged_measurement.data() + extents.first, extents.second,
+						 pb.get_bin_scale(), pb.get_bin_center_freq(extents.first));
+		ImPlot::HideNextItem();
+		ImPlot::PlotLine("Maximums", pb.max_measurement.data() + extents.first, extents.second,
+						 pb.get_bin_scale(), pb.get_bin_center_freq(extents.first));
+		ImPlot::HideNextItem();
+		ImPlot::PlotLine("Minimums", pb.min_measurement.data() + extents.first, extents.second,
 						 pb.get_bin_scale(), pb.get_bin_center_freq(extents.first));
 		ImPlot::EndPlot();
 	};
