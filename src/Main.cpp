@@ -14,6 +14,7 @@ int main(void)
 	bool first_run = true;
 	auto gui_function = [&show_menu, &pb, &first_run]()
 	{
+		pb.update();
 		const char* units[] = {"Hz", "kHz", "MHz", "GHz"};
 		//pb.update(ImGui::GetIO().DeltaTime);
 		if(show_menu)
@@ -82,12 +83,10 @@ int main(void)
 		float x[3] = {1.0, 2.0, 3.0};
 		float y[3] = {0.0, 4.0, -3.0};
 		ImPlot::BeginPlot("Test");
-		ImPlot::PlotLineG("Spectrum", [](int i, void* d)
-		{
-			auto* pb = (PlotBuilder*)d;
-			auto pair = pb->get_spectrum(i);
-			return ImPlotPoint(pair.first, pair.second);
-		}, &pb, pb.get_num_points());
+		auto limits = ImPlot::GetPlotLimits();
+		auto extents = pb.get_plot_ranges(limits.X.Min, limits.X.Max);
+		ImPlot::PlotLine("Spectrum", pb.current_measurement.data() + extents.first, extents.second,
+						 pb.get_bin_scale(), pb.get_bin_center_freq(extents.first));
 		ImPlot::EndPlot();
 	};
 
