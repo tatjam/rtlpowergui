@@ -28,6 +28,15 @@ struct Scan
 	bool is_last_of_scan;
 };
 
+struct Measurement
+{
+	Settings settings;
+	std::vector<double> spectrum;
+	std::vector<double> average;
+	std::vector<double> max;
+	std::vector<double> min;
+};
+
 // Runs in a thread to build the raw plots for ImGui
 // with no blocking
 // and uses the RTLPowerWrapper to get its data
@@ -55,6 +64,8 @@ private:
 
 public:
 
+	int baseline_mode;
+
 	double get_bin_center_freq(size_t idx);
 	size_t get_bin_for_freq(double freq);
 
@@ -62,7 +73,6 @@ public:
 	std::atomic<bool> launch_queued = false;
 
 	Settings exposed;
-	Settings commited;
 
 	void commit_settings();
 	void update_averaging();
@@ -74,15 +84,12 @@ public:
 	//void update(float dt);
 
 	// Returns Hertz / dB/Hz
-	std::vector<double> current_measurement;
+	Measurement current;
 	int num_average_hold;
 	// Number of measurements since last update_averaging
 	// growing until it's equal to num_average_hold
 	int measurement_count;
 	std::vector<std::vector<double>> prev_measurements;
-	std::vector<double> averaged_measurement;
-	std::vector<double> max_measurement;
-	std::vector<double> min_measurement;
 
 	int get_num_points();
 

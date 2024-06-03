@@ -87,7 +87,6 @@ void RTLPowerWrapper::launch()
 			}
 		}
 
-		std::cout << "THREAD EXIT!" << std::endl;
 
 		close(readfd);
 	}, pipefd[0]);
@@ -100,8 +99,8 @@ void RTLPowerWrapper::stop()
 	if(cur_pid != 0)
 	{
 		// TODO: Use SIGINT to smoothly shut off!
-		std::cout << kill(cur_pid, SIGTERM) << std::endl;
-		std::cout << kill(cur_pid, SIGTERM) << std::endl;
+		kill(cur_pid, SIGTERM);
+		kill(cur_pid, SIGTERM);
 		wait(nullptr);
 	}
 	thread_run = false;
