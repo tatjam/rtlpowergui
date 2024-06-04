@@ -16,9 +16,9 @@ struct Settings
 	int max_freq_units;
 	int nbins;
 	int percent;
-	bool use_nsamples;
 	int nsamples;
-	double samplet;
+	std::string to_string();
+	static Settings from_string(const std::string& str);
 };
 
 struct Scan
@@ -35,6 +35,19 @@ struct Measurement
 	std::vector<double> average;
 	std::vector<double> max;
 	std::vector<double> min;
+
+	double get_bin_center_freq(size_t idx);
+	size_t get_bin_for_freq(double freq);
+	double get_low_freq();
+	double get_high_freq();
+	double get_freq_range() { return get_high_freq() - get_low_freq(); }
+	double get_hertz_per_bin();
+	double get_bin_scale();
+	int64_t get_freq(float val, int units);
+	size_t get_number_of_scans();
+
+	std::string to_csv();
+	static Measurement from_csv(const std::string& str);
 };
 
 // Runs in a thread to build the raw plots for ImGui
@@ -50,7 +63,6 @@ private:
 	// We neatly subdivide the freq spectrum, and round samples
 	// (this will nearly never be an issue)
 
-	int64_t get_freq(float val, int units);
 	std::mutex mtx;
 	std::vector<Scan> reads_buffer;
 	std::atomic<bool> next_is_first;
@@ -66,8 +78,6 @@ public:
 
 	int baseline_mode;
 
-	double get_bin_center_freq(size_t idx);
-	size_t get_bin_for_freq(double freq);
 
 	void update();
 	std::atomic<bool> launch_queued = false;
@@ -90,18 +100,6 @@ public:
 	// growing until it's equal to num_average_hold
 	int measurement_count;
 	std::vector<std::vector<double>> prev_measurements;
-
-	int get_num_points();
-
-	double get_low_freq();
-	double get_high_freq();
-	double get_freq_range() { return get_high_freq() - get_low_freq(); }
-	size_t get_number_of_scans();
-	double get_hertz_per_bin();
-	double get_bin_scale();
-
-	// Returns min and length to plot given low and high frequencies
-	std::pair<size_t, size_t> get_plot_ranges(double lfreq, double hfreq);
 
 	bool get_power_status() { return power_wrapper.get_exec_status(); }
 

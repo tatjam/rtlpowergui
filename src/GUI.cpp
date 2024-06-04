@@ -4,7 +4,6 @@
 void GUI::gui_function()
 {
 	pb.update();
-	//pb.update(ImGui::GetIO().DeltaTime);
 	if(show_menu)
 	{
 		ImGui::Columns(2);
@@ -135,21 +134,21 @@ void GUI::do_plot()
 	ImPlot::BeginPlot("Test", ImVec2(-1, -1), ImPlotFlags_NoTitle | ImPlotFlags_NoFrame);
 	if(update_view && update_view_now)
 	{
-		ImPlot::SetupAxesLimits(pb.get_low_freq(), pb.get_high_freq(),
+		ImPlot::SetupAxesLimits(pb.current.get_low_freq(), pb.current.get_high_freq(),
 								-80.0, 0.0, ImPlotCond_Always);
 		update_view_now = false;
 	}
-	ImPlot::PlotLine("Spectrum", pb.current.spectrum.data(), pb.get_num_points(),
-					 pb.get_bin_scale(), pb.get_low_freq());
+	ImPlot::PlotLine("Spectrum", pb.current.spectrum.data(), pb.current.spectrum.size(),
+					 pb.current.get_bin_scale(), pb.current.get_low_freq());
 	ImPlot::HideNextItem();
-	ImPlot::PlotLine("Averages", pb.current.average.data(), pb.get_num_points(),
-					 pb.get_bin_scale(), pb.get_low_freq());
+	ImPlot::PlotLine("Averages", pb.current.average.data(), pb.current.spectrum.size(),
+					 pb.current.get_bin_scale(), pb.current.get_low_freq());
 	ImPlot::HideNextItem();
-	ImPlot::PlotLine("Maximums", pb.current.max.data(), pb.get_num_points(),
-					 pb.get_bin_scale(), pb.get_low_freq());
+	ImPlot::PlotLine("Maximums", pb.current.max.data(), pb.current.spectrum.size(),
+					 pb.current.get_bin_scale(), pb.current.get_low_freq());
 	ImPlot::HideNextItem();
-	ImPlot::PlotLine("Minimums", pb.current.min.data(), pb.get_num_points(),
-					 pb.get_bin_scale(), pb.get_low_freq());
+	ImPlot::PlotLine("Minimums", pb.current.min.data(), pb.current.spectrum.size(),
+					 pb.current.get_bin_scale(), pb.current.get_low_freq());
 	ImPlot::EndPlot();
 
 }
