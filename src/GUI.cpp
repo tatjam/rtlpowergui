@@ -209,6 +209,14 @@ void GUI::do_export_menu()
 			perform_load(mes);
 		}
 	}
+
+	ImGui::SameLine();
+
+	if(ImGui::Button("Capture..."))
+	{
+		perform_load(pb.current);
+	}
+
 	ImGui::Checkbox("... as baseline + settings", &save_and_load_baseline);
 	ImGui::Checkbox("... as measurement", &save_and_load_measurement);
 
@@ -220,6 +228,8 @@ void GUI::do_export_menu()
 	{
 		pb.baseline.reset();
 		update_view_now = true;
+		save_and_load_measurement = false;
+		save_and_load_baseline = true;
 	}
 	ImGui::EndDisabled();
 
