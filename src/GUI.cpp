@@ -182,3 +182,9 @@ void GUI::do_measure_menu()
 	ImGui::Combo("##bline_mode", &pb.baseline_mode, baseline_mode, IM_ARRAYSIZE(baseline_mode));
 
 }
+
+GUI::GUI()
+{
+	pb.launch();
+
+}

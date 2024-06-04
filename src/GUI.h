@@ -29,4 +29,5 @@ public:
 
 
 	void gui_function();
+	GUI();
 };

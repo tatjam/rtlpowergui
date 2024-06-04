@@ -44,7 +44,7 @@ void RTLPowerWrapper::launch()
 		// Child process
 		close(pipefd[0]);
 		dup2(pipefd[1], 1); // redirect stdout (fd 1) to pipe, this replaces the fd
-		//close(2); // close stderr
+		close(2); // close stderr
 		close(pipefd[1]); 	// so we dont need the pipe itself, as it's stdout itself now
 		// Launch the process replacing ourselves
 		execl("/bin/sh", "sh", "-c", cmdbuild.str().c_str(), nullptr);
