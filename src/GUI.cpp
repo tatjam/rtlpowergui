@@ -1,5 +1,8 @@
 #include "GUI.h"
 #include <imgui_internal.h>
+#include <chrono>
+#include <fstream>
+#include "portable-file-dialogs.h"
 
 void GUI::gui_function()
 {
@@ -32,7 +35,7 @@ void GUI::gui_function()
 		{
 			do_measure_menu();
 		}
-		if (ImGui::CollapsingHeader("Export"))
+		if (ImGui::CollapsingHeader("Export", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			do_export_menu();
 		}
@@ -89,6 +92,23 @@ void GUI::do_ranges_menu()
 	if(disabled)
 		ImGui::EndDisabled();
 
+	ImGui::BeginDisabled(pb.has_baseline() || !pb.baseline.has_value());
+	if(ImGui::Button("Match baseline"))
+	{
+		pb.exposed = pb.baseline.value().settings;
+	}
+	ImGui::EndDisabled();
+	if(!pb.has_baseline() && pb.baseline.has_value())
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(0.5, 0.05, 0.05, 1.0), "Settings don't match baseline!");
+	}
+	if(pb.has_baseline())
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(0.0, 0.0, 0.3, 1.0), "Baseline matched");
+	}
+
 	ImGui::PopItemWidth();
 
 }
@@ -134,8 +154,16 @@ void GUI::do_plot()
 	ImPlot::BeginPlot("Test", ImVec2(-1, -1), ImPlotFlags_NoTitle | ImPlotFlags_NoFrame);
 	if(update_view && update_view_now)
 	{
-		ImPlot::SetupAxesLimits(pb.current.get_low_freq(), pb.current.get_high_freq(),
-								-80.0, 0.0, ImPlotCond_Always);
+		if(pb.has_baseline())
+		{
+			ImPlot::SetupAxesLimits(pb.current.get_low_freq(), pb.current.get_high_freq(),
+									-30, 50.0, ImPlotCond_Always);
+		}
+		else
+		{
+			ImPlot::SetupAxesLimits(pb.current.get_low_freq(), pb.current.get_high_freq(),
+									-80.0, 0.0, ImPlotCond_Always);
+		}
 		update_view_now = false;
 	}
 	ImPlot::PlotLine("Spectrum", pb.current.spectrum.data(), pb.current.spectrum.size(),
@@ -155,36 +183,94 @@ void GUI::do_plot()
 
 void GUI::do_export_menu()
 {
-	if(ImGui::Button("To CSV"))
+	if(ImGui::Button("To CSV and load..."))
 	{
-
+		const std::string& data = pb.current.to_csv();
+		auto now = std::chrono::system_clock::now();
+		std::time_t cur_time = std::chrono::system_clock::to_time_t(now);
+		std::tm* tm = localtime(&cur_time);
+		char fname[64];
+		size_t num = std::strftime(fname, sizeof(fname), "%Y-%m-%d %H:%M:%S.csv", tm);
+		std::ofstream f(fname, std::ios::trunc);
+		f << data << std::endl;
+		perform_load(pb.current);
 	}
-	if(ImGui::Button("To CSV (+ Load baseline)"))
+	ImGui::SameLine();
+
+	if(ImGui::Button("Load..."))
 	{
-
+		auto file = pfd::open_file("Load measurement", ".", {"CSV files", "*.csv"}).result();
+		if(!file.empty())
+		{
+			std::ifstream in(file[0]);
+			std::string file_contents;
+			in >> file_contents;
+			Measurement mes = Measurement::from_csv(file_contents);
+			perform_load(mes);
+		}
 	}
-	if(ImGui::Button("Screenshot"))
+	ImGui::Checkbox("... as baseline + settings", &save_and_load_baseline);
+	ImGui::Checkbox("... as measurement", &save_and_load_measurement);
+
+	neat_element("Bline Mode");
+	ImGui::Combo("##bline_mode", &pb.baseline_mode, baseline_mode, IM_ARRAYSIZE(baseline_mode));
+
+	ImGui::BeginDisabled(!pb.baseline.has_value());
+	if(ImGui::Button("Clear baseline"))
 	{
-
+		pb.baseline.reset();
+		update_view_now = true;
 	}
+	ImGui::EndDisabled();
+
 
 
 }
 
 void GUI::do_measure_menu()
 {
-	if(ImGui::Button("Load baseline"))
-	{
-
-	}
-
-	neat_element("Bline Mode");
-	ImGui::Combo("##bline_mode", &pb.baseline_mode, baseline_mode, IM_ARRAYSIZE(baseline_mode));
 
 }
 
 GUI::GUI()
 {
 	pb.launch();
+	save_and_load_baseline = true;
+	save_and_load_measurement = false;
+}
+
+void GUI::perform_load(Measurement& meas)
+{
+	if(save_and_load_baseline)
+	{
+		if(pb.has_baseline())
+		{
+			// Add back the baseline, otherwise we get "cancellation" effect
+			for(size_t i = 0; i < meas.spectrum.size(); i++)
+			{
+				meas.spectrum[i] += pb.baseline.value().get_baseline_bin(pb.baseline_mode)[i];
+				meas.average[i] += pb.baseline.value().get_baseline_bin(pb.baseline_mode)[i];
+				meas.min[i] += pb.baseline.value().get_baseline_bin(pb.baseline_mode)[i];
+				meas.max[i] += pb.baseline.value().get_baseline_bin(pb.baseline_mode)[i];
+			}
+		}
+		pb.exposed = meas.settings;
+		pb.baseline = meas;
+		pb.commit_settings();
+		if(update_view)
+			update_view_now = true;
+
+	}
+
+	if(save_and_load_measurement)
+	{
+
+	}
+
+	if(save_and_load_baseline)
+	{
+		save_and_load_baseline = false;
+		save_and_load_measurement = true;
+	}
 
 }

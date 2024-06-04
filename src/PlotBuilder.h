@@ -1,6 +1,7 @@
 #pragma once
 #include "RTLPowerWrapper.h"
 #include <map>
+#include <optional>
 
 struct Settings
 {
@@ -17,8 +18,11 @@ struct Settings
 	int nbins;
 	int percent;
 	int nsamples;
-	std::string to_string();
-	static Settings from_string(const std::string& str);
+	void to_stringstream(std::stringstream& s);
+	static Settings from_stringstream(std::stringstream& str);
+
+	// Practical equality check for baseline
+	bool operator==(const Settings& b) const;
 };
 
 struct Scan
@@ -27,6 +31,7 @@ struct Scan
 	bool is_first_of_scan;
 	bool is_last_of_scan;
 };
+
 
 struct Measurement
 {
@@ -48,6 +53,17 @@ struct Measurement
 
 	std::string to_csv();
 	static Measurement from_csv(const std::string& str);
+
+	std::vector<double>& get_baseline_bin(int baseline_mode);
+};
+
+struct Measure
+{
+	bool show_spectrum;
+	bool show_average;
+	bool show_max;
+	bool show_min;
+	Measurement meas;
 };
 
 // Runs in a thread to build the raw plots for ImGui
@@ -100,6 +116,12 @@ public:
 	// growing until it's equal to num_average_hold
 	int measurement_count;
 	std::vector<std::vector<double>> prev_measurements;
+
+	std::vector<Measurement> measures;
+	// Settings must match current, otherwise it's ignored
+	std::optional<Measurement> baseline;
+
+	bool has_baseline();
 
 	bool get_power_status() { return power_wrapper.get_exec_status(); }
 

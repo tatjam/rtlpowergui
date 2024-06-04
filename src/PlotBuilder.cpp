@@ -77,6 +77,9 @@ PlotBuilder::PlotBuilder()
 	num_average_hold = 20;
 	update_averaging();
 
+	// Average
+	baseline_mode = 1;
+
 
 }
 
@@ -212,6 +215,13 @@ void PlotBuilder::update()
 
 				}
 
+				if(has_baseline())
+				{
+					current.spectrum[bin] -= baseline.value().get_baseline_bin(baseline_mode)[bin];
+					current.max[bin] -= baseline.value().get_baseline_bin(baseline_mode)[bin];
+					current.min[bin] -= baseline.value().get_baseline_bin(baseline_mode)[bin];
+					current.average[bin] -= baseline.value().get_baseline_bin(baseline_mode)[bin];
+				}
 			}
 		}
 	}
@@ -236,6 +246,41 @@ double Measurement::get_bin_scale()
 return hertz_per_bin;
 }
 
+std::string Measurement::to_csv()
+{
+	std::stringstream o;
+	settings.to_stringstream(o);
+	o << "freq,spectrum,avg,max,min" << std::endl;
+	// Write each measurement in bin mode, with meta-data for users who analyze otherwise
+	for(size_t i = 0; i < spectrum.size(); i++)
+	{
+		o <<
+			get_bin_center_freq(i) << "," <<
+			spectrum[i] << "," <<
+			average[i] << "," <<
+			max[i] << "," <<
+			min[i] << std::endl;
+	}
+	return o.str();
+}
+
+Measurement Measurement::from_csv(const std::string &str)
+{
+	return Measurement();
+}
+
+std::vector<double>& Measurement::get_baseline_bin(int baseline_mode)
+{
+	if(baseline_mode == 0)
+		return spectrum;
+	else if(baseline_mode == 1)
+		return average;
+	else if(baseline_mode == 2)
+		return max;
+	else
+		return min;
+}
+
 void PlotBuilder::update_averaging()
 {
 	prev_measurements.clear();
@@ -252,9 +297,13 @@ void PlotBuilder::update_averaging()
 	measurement_count = 0;
 }
 
-std::string Settings::to_string()
+bool PlotBuilder::has_baseline()
 {
-	std::stringstream outs;
+	return baseline.has_value() && (baseline.value().settings == current.settings);
+}
+
+void Settings::to_stringstream(std::stringstream& outs)
+{
 
 	outs << samp_rate << std::endl;
 	outs << min_freq << std::endl;
@@ -266,16 +315,20 @@ std::string Settings::to_string()
 	outs << percent << std::endl;
 	outs << nsamples << std::endl;
 
-	return outs.str();
 }
 
-Settings Settings::from_string(const std::string &str)
+Settings Settings::from_stringstream(std::stringstream& ss)
 {
 	Settings out;
-	std::stringstream ss = std::stringstream(str);
 	ss >> out.samp_rate >> out.min_freq >> out.min_freq_units >> out.max_freq >> out.max_freq_units >>
 		out.gain >> out.nbins >> out.percent >> out.nsamples;
 	return out;
+}
+
+bool Settings::operator==(const Settings &b) const
+{
+	return min_freq == b.min_freq && max_freq == b.max_freq && min_freq_units && b.min_freq_units
+			&& max_freq_units == b.max_freq_units && b.percent == percent;
 }
 
 

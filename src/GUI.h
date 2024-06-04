@@ -10,6 +10,8 @@ private:
 
 	constexpr static const char* units[] = {"Hz", "kHz", "MHz", "GHz"};
 	constexpr static const char* baseline_mode[] = {"Spectrum", "Average", "Max", "Min"};
+	bool save_and_load_baseline;
+	bool save_and_load_measurement;
 
 	bool tight = false;
 	bool show_menu = true;
@@ -25,6 +27,7 @@ private:
 	void do_plot();
 	void neat_element(const char* name);
 
+	void perform_load(Measurement& meas);
 public:
 
 
