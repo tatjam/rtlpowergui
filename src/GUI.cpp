@@ -152,6 +152,8 @@ void GUI::do_display_menu()
 void GUI::do_plot()
 {
 	ImPlot::BeginPlot("Test", ImVec2(-1, -1), ImPlotFlags_NoTitle | ImPlotFlags_NoFrame);
+	ImPlot::SetupAxisFormat(ImAxis_X1, MetricFormatter, (void*)"Hz");
+	ImPlot::SetupAxisFormat(ImAxis_Y1, "%g dB");
 	if(update_view && update_view_now)
 	{
 		if(pb.has_baseline())
@@ -284,3 +286,23 @@ void GUI::perform_load(Measurement& meas)
 	}
 
 }
+
+int MetricFormatter(double value, char* buff, int size, void* data) {
+	int ret;
+    const char* unit = (const char*)data;
+    static double v[]      = {1000000000,1000000,1000,1,0.001,0.000001,0.000000001};
+    static const char* p[] = {"G","M","k","","m","u","n"};
+    if (value == 0) {
+        ret = snprintf(buff,size,"0 %s", unit);
+        return ret;
+    }
+    for (int i = 0; i < 7; ++i) {
+        if (fabs(value) >= v[i]) {
+            ret = snprintf(buff,size,"%g %s%s",value/v[i],p[i],unit);
+            return ret;
+        }
+    }
+    ret = snprintf(buff,size,"%g %s%s",value/v[6],p[6],unit);
+	return ret;
+}
+

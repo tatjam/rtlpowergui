@@ -3,6 +3,8 @@
 #include "implot.h"
 #include "PlotBuilder.h"
 
+int MetricFormatter(double value, char* buff, int size, void* data);
+
 class GUI
 {
 private:
