@@ -1,6 +1,9 @@
 #pragma once
 #include "RTLPowerWrapper.h"
-#include <map>
+//#include <map>
+#include <regex>
+#include <fstream>
+#include <unordered_map>
 #include <optional>
 
 struct Settings
@@ -40,6 +43,8 @@ struct Measurement
 	std::vector<double> average;
 	std::vector<double> max;
 	std::vector<double> min;
+	int numScans = 0;
+	int stepFreq = 0;
 
 	double get_bin_center_freq(size_t idx);
 	size_t get_bin_for_freq(double freq);
@@ -53,6 +58,9 @@ struct Measurement
 
 	std::string to_csv();
 	static Measurement from_csv(const std::string& str);
+
+	static void from_binFile_meta(const std::string& fname, Measurement& bin);
+	static void from_binFile_raw(const std::string& fname, Measurement& raw);
 
 	std::vector<double>& get_baseline_bin(int baseline_mode);
 };
@@ -94,7 +102,6 @@ public:
 
 	int baseline_mode;
 
-
 	void update();
 	std::atomic<bool> launch_queued = false;
 
@@ -108,6 +115,8 @@ public:
 	void launch();
 	// Updates dynamic graphs
 	//void update(float dt);
+	
+	void stop();
 
 	// Returns Hertz / dB/Hz
 	Measurement current;

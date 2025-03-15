@@ -31,7 +31,6 @@ void RTLPowerWrapper::launch()
 		cmdbuild << " -n " << snum;
 
 	// Launch the program
-
 	// [0] = read, [1] = write
 	int pipefd[2];
 	if(pipe(pipefd) == -1)
@@ -65,7 +64,7 @@ void RTLPowerWrapper::launch()
 		// Setup poll
 		struct pollfd pfd =
 		{
-				readfd, POLLIN
+			readfd, POLLIN
 		};
 
 		while(thread_run)
@@ -86,7 +85,6 @@ void RTLPowerWrapper::launch()
 				}
 			}
 		}
-
 
 		close(readfd);
 	}, pipefd[0]);
@@ -137,6 +135,7 @@ double RTLPowerWrapper::set_samp_time(double nstime)
 	assert(!thread_run);
 	stime = nstime;
 	use_stime = true;
+	return 0;
 }
 
 void RTLPowerWrapper::set_gain(int ngain)

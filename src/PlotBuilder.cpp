@@ -1,6 +1,7 @@
 #include "PlotBuilder.h"
 #include <iostream>
 #include <cmath>
+#include <limits>
 #include <sstream>
 
 void PlotBuilder::launch()
@@ -112,6 +113,12 @@ void PlotBuilder::commit_settings()
 	current.spectrum.clear();
 	current.spectrum.resize(std::ceil(current.get_number_of_scans() * current.settings.nbins));
 	update_averaging();
+}
+
+void PlotBuilder::stop()
+{
+	power_wrapper.stop();
+	launch_queued = false;
 }
 
 size_t Measurement::get_number_of_scans()
@@ -227,7 +234,6 @@ void PlotBuilder::update()
 	}
 	reads_buffer.clear();
 	mtx.unlock();
-
 }
 
 double Measurement::get_high_freq()
@@ -241,9 +247,9 @@ double Measurement::get_low_freq()
 }
 
 double Measurement::get_bin_scale()
-{
+{	
 	double hertz_per_bin = (double)settings.samp_rate / (double)settings.nbins;
-return hertz_per_bin;
+	return hertz_per_bin;
 }
 
 std::string Measurement::to_csv()
@@ -267,6 +273,134 @@ std::string Measurement::to_csv()
 Measurement Measurement::from_csv(const std::string &str)
 {
 	return Measurement();
+}
+
+/*
+	Read information about recorded spectrum from metafile 
+*/
+void Measurement::from_binFile_meta(const std::string& fname, Measurement& binaryData)
+{
+	/*
+		Sample recorded metafile:
+		5000 # frequency bins (columns)
+		85 # scans (rows)
+		88000000 # startFreq (Hz)
+		107996000 # endFreq (Hz)
+		4000 # stepFreq (Hz)
+		0.0025 # effective integration time secs
+		0.0352941 # avgScanDur (sec)
+		2025-03-02 11:41:45 UTC # firstAcqTimestamp UTC
+		2025-03-02 11:42:45 UTC # lastAcqTimestamp UTC
+	*/
+
+	if( fname.empty())
+	{
+		throw std::runtime_error("Cannot open empty *.met file: " + fname);
+	}
+	
+	std::ifstream cfg_file(fname);
+	std::unordered_map<std::string, std::string> metaData;
+
+    if(!cfg_file.good())
+	{
+		throw std::runtime_error("Cannot open *.met file: " + fname);
+	}
+ 
+    std::string line;
+    while(std::getline(cfg_file, line))
+    {
+        std::regex re(R"XXX(^(\d+.*)\s*#\s*(\S+))XXX", std::regex::optimize);
+        std::smatch match;
+        if(std::regex_search(line, match, re))
+        {
+            if(match.length(2))
+            {
+                std::string key = match.str(2), value = match.str(1);
+                std::cout << "Settings in metafile: " << key << " -> " << value << std::endl;
+				metaData[key]=value;
+            }
+        }
+        else
+            throw std::runtime_error("Invalid line in file: " + fname + " -> " + line);
+    }
+
+	binaryData.settings.min_freq = std::stoi(metaData.at("startFreq"));
+	binaryData.settings.max_freq = std::stoi(metaData.at("endFreq"));
+	binaryData.settings.nbins    = std::stoi(metaData.at("frequency"));
+	binaryData.stepFreq          = std::stoi(metaData.at("stepFreq"));
+	binaryData.numScans = std::stoi(metaData.at("scans")); 
+
+	// Set default settings
+	binaryData.settings.min_freq_units = 0;
+	binaryData.settings.max_freq_units = 0;
+	binaryData.settings.gain           = 20;
+	binaryData.settings.percent        = 0;
+	binaryData.settings.nsamples       = 20;
+
+	// hertz_per_bin = (double)settings.samp_rate / (double)settings.nbins;
+	// Calculate sample_rate based on information from metafile 
+	binaryData.settings.samp_rate      = binaryData.stepFreq * binaryData.settings.nbins; //2e6;
+
+	// Clear all previous measurements
+	binaryData.spectrum.clear();
+	binaryData.spectrum.resize(binaryData.settings.nbins);
+
+	binaryData.average.clear();
+	binaryData.average.resize(binaryData.spectrum.size());
+
+	binaryData.max.clear();
+	binaryData.max.resize(binaryData.spectrum.size());
+
+	binaryData.min.clear();
+	binaryData.min.resize(binaryData.spectrum.size());
+}
+
+/*
+	Read raw data from *.bin file 
+*/
+void Measurement::from_binFile_raw(const std::string& fname, Measurement& binaryData)
+{
+	if( fname.empty())
+	{
+		throw std::runtime_error("Cannot open empty *.bin file: " + fname);
+	}
+
+	std::ifstream bin_file(fname, std::ios::binary);
+	if(!bin_file.good())
+	{
+		throw std::runtime_error("Cannot open *.bin file: " + fname);
+	}
+	 
+	double f;
+	std::vector<float> buf((binaryData.numScans * binaryData.settings.nbins));    // create buffer
+	bin_file.read(reinterpret_cast<char*>(buf.data()), buf.size()*sizeof(float)); // read all binary data from file to buffer
+
+	double meas;
+	for( size_t n = 0; n < binaryData.numScans; n++ )
+	{
+		std::cout << "Scan load: "<< n << std::endl;
+		for( size_t i = 0; i < binaryData.settings.nbins; i++ )
+		{	
+			meas = buf[i+(n * binaryData.settings.nbins)];
+			binaryData.spectrum[i] = meas;
+			if ( n==0 ) // calculate avarage based on first scan
+			{
+				binaryData.average[i] = meas;
+				binaryData.max[i] = meas;
+				binaryData.min[i] = meas;
+			} else {
+				binaryData.average[i] += meas ;
+				binaryData.max[i] = std::max(meas, binaryData.max[i]);
+				binaryData.min[i] = std::min(meas, binaryData.min[i]);
+			}
+		}
+	}
+		
+	for( size_t i = 0; i < binaryData.settings.nbins; i++ )
+	{
+		binaryData.average[i] /= binaryData.numScans ;
+	}
+		
 }
 
 std::vector<double>& Measurement::get_baseline_bin(int baseline_mode)
@@ -330,9 +464,3 @@ bool Settings::operator==(const Settings &b) const
 	return min_freq == b.min_freq && max_freq == b.max_freq && min_freq_units && b.min_freq_units
 			&& max_freq_units == b.max_freq_units && b.percent == percent;
 }
-
-
-
-
-
-
